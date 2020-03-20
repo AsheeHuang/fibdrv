@@ -6,6 +6,8 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
+#include <linux/slab.h>
+#include <linux/uaccess.h>
 
 MODULE_LICENSE("Dual MIT/GPL");
 MODULE_AUTHOR("National Cheng Kung University, Taiwan");
@@ -18,17 +20,55 @@ MODULE_VERSION("0.1");
  * ssize_t can't fit the number > 92
  */
 #define MAX_LENGTH 92
+#define MAX_UNSIGNED_LONG_LONG 18446744073709551616
 
 static dev_t fib_dev = 0;
 static struct cdev *fib_cdev;
 static struct class *fib_class;
 static DEFINE_MUTEX(fib_mutex);
 
+struct BigN {
+    unsigned long long lower, upper;
+};
+
+static inline void addBigN(struct BigN *output, struct BigN x, struct BigN y)
+{
+    output->upper = x.upper + y.upper;
+    if (y.lower > ~x.lower) {
+        output->upper++;
+    }
+    output->lower = x.lower + y.lower;
+}
+
+static struct BigN fibonacci(long long k)
+{
+    struct BigN first = {.upper = 0x0, .lower = 0x0};
+    struct BigN second = {.upper = 0x0, .lower = 0x1};
+    struct BigN output;
+    if (k == 0)
+        return first;
+    else if (k == 1)
+        return second;
+
+    for (int i = 2; i <= k; i++) {
+        addBigN(&output, first, second);
+        first = second;
+        second = output;
+    }
+    return output;
+}
+
+static void printBigN(struct BigN num)
+{
+    char buf[100];
+    // TODO
+    printk("%s", buf);
+}
+
 static long long fib_sequence(long long k)
 {
     /* FIXME: use clz/ctz and fast algorithms to speed up */
     long long f[k + 2];
-
     f[0] = 0;
     f[1] = 1;
 
@@ -60,6 +100,8 @@ static ssize_t fib_read(struct file *file,
                         size_t size,
                         loff_t *offset)
 {
+    struct BigN num = fibonacci(*offset);
+    printBigN(num);
     return (ssize_t) fib_sequence(*offset);
 }
 
